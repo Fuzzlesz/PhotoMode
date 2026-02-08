@@ -26,12 +26,8 @@
 #include <srell.hpp>
 #include <xbyak/xbyak.h>
 
-#include "ImGui/Backend/imgui_impl_win32.h"
 #include "imgui_internal.h"
 #include <imgui.h>
-#include <imgui_freetype.h>
-#include <imgui_impl_dx11.h>
-#include <imgui_impl_win32.h>
 
 #include <ClibUtil/RNG.hpp>
 #include <ClibUtil/editorID.hpp>
@@ -128,6 +124,10 @@ namespace stl
 #	define OFFSET(se, ae) se
 #endif
 
+#include "FUCK_API.h"
+
+#define TRANSLATE(key) FUCK::Translate(key)
+#define TRANSLATE_S(key) std::string(FUCK::Translate(key))
+
 #include "Cache.h"
-#include "Translation.h"
 #include "Version.h"

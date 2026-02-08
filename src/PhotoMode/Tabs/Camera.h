@@ -80,7 +80,7 @@ namespace PhotoMode
 			kDiagonal,
 			kTriangle,
 			kGoldenRatio,
-			//kGoldenSpiral,
+			kGoldenSpiral,
 			kGrid
 		};
 
@@ -90,7 +90,7 @@ namespace PhotoMode
 			"$PM_Grid_Diagonal",
 			"$PM_Grid_Triangle",
 			"$PM_Grid_GoldenRatio",
-			/*"$PM_Grid_GoldenSpiral"*/
+			"$PM_Grid_GoldenSpiral",
 			"$PM_Grid_Grid"
 		};
 
@@ -98,5 +98,18 @@ namespace PhotoMode
 
 		// members
 		inline GridType gridType{ kDisabled };
+
+		// Settings for API Overlays
+		inline float overlayThickness = 2.0f;
+		inline float overlayColor[4] = { 1.0f, 1.0f, 1.0f, 0.5f };
+		inline int   gridRows = 3;
+		inline int   gridCols = 3;
+		inline float gridRotation = 0.0f;
+		inline int   spiralAnchor = 0;
+		inline float spiralScale = 1.0f;
+		inline float spiralTurns = 6.0f;
+		inline bool  showSquares = false;
+		inline int   subDivs = 0;
+		inline bool  triMirror = false;
 	}
 }

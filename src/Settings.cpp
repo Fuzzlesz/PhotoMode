@@ -1,6 +1,5 @@
 #include "Settings.h"
 
-#include "ImGui/IconsFonts.h"
 #include "Input.h"
 #include "PhotoMode/Hotkeys.h"
 #include "PhotoMode/Manager.h"
@@ -72,7 +71,6 @@ void Settings::LoadMCMSettings() const
 		MANAGER(Screenshot)->LoadMCMSettings(ini);
 		MANAGER(LoadScreen)->LoadMCMSettings(ini);
 
-		MANAGER(IconFont)->LoadMCMSettings(ini);  // button scheme
 		MANAGER(Input)->LoadMCMSettings(ini);     // key held duration
 
 		MANAGER(PhotoMode)->LoadMCMSettings(ini);

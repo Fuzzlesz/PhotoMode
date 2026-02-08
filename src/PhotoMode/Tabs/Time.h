@@ -1,7 +1,5 @@
 #pragma once
 
-#include "ImGui/FormComboBox.h"
-
 namespace PhotoMode
 {
 	class Time
@@ -32,8 +30,7 @@ namespace PhotoMode
 		float currentGlobalTimeMult{};
 		float currentTimescaleMult{};
 
-		ImGui::FormComboBoxFiltered<RE::TESWeather> weathers{ "$PM_Weathers" };
-		RE::TESWeather*                             originalWeather{ nullptr };
-		bool                                        weatherForced{ false };
+		RE::TESWeather* originalWeather{ nullptr };
+		bool            weatherForced{ false };
 	};
 }

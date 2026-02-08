@@ -1,9 +1,6 @@
 #include "CameraPositions.h"
 
-#include "ImGui/Renderer.h"
-#include "ImGui/Widgets.h"
 #include "PhotoMode/Manager.h"
-#include "Translation.h"
 
 namespace PhotoMode
 {
@@ -117,49 +114,57 @@ namespace PhotoMode
 			positionsLoaded = true;
 		}
 
-		ImGui::SeparatorText("$PM_CameraPositions_Header"_T);
+		FUCK::SeparatorText("$PM_CameraPositions_Header"_T);
 
-		ImGui::PushID("CameraPositions");
+		FUCK::PushID("CameraPositions");
 		{
-			ImGui::CheckBox("$PM_CameraPositions_SavePCTransform"_T, &savePlayerTransform);
+			FUCK::Checkbox("$PM_CameraPositions_SavePCTransform"_T, &savePlayerTransform);
 
 			if (!positions.empty()) {
-				ImGui::AlignTextToFramePadding();
-				ImGui::Text("$PM_CameraPositions_Select"_T);
+				FUCK::Text("$PM_CameraPositions_Select"_T);
 
-				ImGui::SameLine();
+				FUCK::SameLine();
 
-				ImGui::PushStyleColor(ImGuiCol_NavCursor, ImGui::GetUserStyleColorVec4(ImGui::USER_STYLE::kComboBoxText));
-				ImGui::PushStyleColor(ImGuiCol_Header, ImGui::GetColorU32(ImGuiCol_TextDisabled));
-
-				ImGui::PushItemWidth(-150 * ImGui::Renderer::GetResolutionScale());
-				if (ImGui::ComboWithFilter("##CameraPosSelect", &selectedPositionIndex, GetPositionNames())) {
-					ImGui::SetKeyboardFocusHere(-1);
+				// Convert position names to const char* array for ComboWithFilter
+				std::vector<const char*> positionNamePtrs;
+				positionNamePtrs.reserve(positionNames.size());
+				for (const auto& name : GetPositionNames()) {
+					positionNamePtrs.push_back(name.c_str());
 				}
-				ImGui::PopItemWidth();
-				ImGui::PopStyleColor(2);
 
-				ImGui::SameLine();
+				FUCK::PushStyleColor(ImGuiCol_NavCursor, FUCK::GetStyleColorVec4(ImGuiCol_Text));
+				FUCK::PushStyleColor(ImGuiCol_Header, FUCK::GetStyleColorVec4(ImGuiCol_TextDisabled));
 
-				ImGui::BeginDisabled(selectedPositionIndex < 0);
+				const float resScale = FUCK::GetResolutionScale();
+				FUCK::SetNextItemWidth(-150 * resScale);
+
+				int idx = selectedPositionIndex;
+				if (FUCK::ComboWithFilter("##CameraPosSelect", &idx, positionNamePtrs.data(), static_cast<int>(positionNamePtrs.size()), -1)) {
+					selectedPositionIndex = idx;
+					FUCK::SetKeyboardFocusHere(-1);
+				}
+
+				FUCK::PopStyleColor(2);
+
+				FUCK::BeginDisabled(selectedPositionIndex < 0);
 				{
-					if (ImGui::OutlineButton(std::format("{}##CameraPosLoad", "$PM_Load"_T).c_str())) {
+					if (FUCK::Button(std::format("{}##CameraPosLoad", "$PM_Load"_T).c_str())) {
 						LoadSelectedCameraPosition();
 					}
-					ImGui::SameLine();
-					if (ImGui::OutlineButton(std::format("{}##CameraPosDelete", "$PM_Delete"_T).c_str())) {
+					FUCK::SameLine();
+					if (FUCK::Button(std::format("{}##CameraPosDelete", "$PM_Delete"_T).c_str())) {
 						DeleteSelectedCameraPosition();
 					}
 				}
-				ImGui::EndDisabled();
+				FUCK::EndDisabled();
 			} else {
-				ImGui::Text("$PM_CameraPositions_None"_T);
-				ImGui::Text("$PM_CameraPositions_Help"_T);
+				FUCK::Text("$PM_CameraPositions_None"_T);
+				FUCK::Text("$PM_CameraPositions_Help"_T);
 			}
 
-			ImGui::Spacing();
+			FUCK::Spacing();
 
-			if (ImGui::OutlineButton(std::format("{}##CameraPosSave", "$PM_CameraPositions_Save"_T).c_str())) {
+			if (FUCK::Button(std::format("{}##CameraPosSave", "$PM_CameraPositions_Save"_T).c_str())) {
 				auto result = SaveCameraPositionEntry();
 				if (result) {
 					RefreshCameraPositions();
@@ -170,15 +175,15 @@ namespace PhotoMode
 				}
 			}
 
-			ImGui::SameLine();
+			FUCK::SameLine();
 
-			if (ImGui::OutlineButton(std::format("{}##CameraPosRefresh", "$PM_CameraPositions_Refresh"_T).c_str())) {
+			if (FUCK::Button(std::format("{}##CameraPosRefresh", "$PM_CameraPositions_Refresh"_T).c_str())) {
 				RefreshCameraPositions();
 				selectedPositionIndex = -1;
 				RE::PlaySound("UIMenuFocus");
 			}
 		}
-		ImGui::PopID();
+		FUCK::PopID();
 	}
 
 	void CameraPositions::RefreshCameraPositions()

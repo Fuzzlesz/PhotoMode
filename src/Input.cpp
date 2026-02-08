@@ -11,14 +11,14 @@ namespace Input
 		return inputDevice;
 	}
 
-	bool Manager::IsInputKBM() const
+    bool Manager::IsInputKBM() const
 	{
-		return inputDevice == DEVICE::kKeyboard || inputDevice == DEVICE::kMouse;
+		return FUCK::GetInputDevice() == FUCK::InputDevice::kMouseKeyboard;
 	}
 
 	bool Manager::IsInputGamepad() const
 	{
-		return inputDevice == DEVICE::kGamepadDirectX || inputDevice == DEVICE::kGamepadOrbis;
+		return FUCK::GetInputDevice() == FUCK::InputDevice::kGamepad;
 	}
 
 	bool Manager::CanNavigateWithMouse() const

@@ -1,17 +1,21 @@
 #pragma once
 
-#include "ImGui/Graphics.h"
-
 namespace PhotoMode
 {
+	struct OverlayData
+	{
+		void*                                  texture{ nullptr };
+		std::shared_ptr<DirectX::ScratchImage> image{ nullptr };
+	};
+
 	class Overlays
 	{
 	public:
 		void LoadOverlays();
 		void RevertOverlays();
 
-		ImGui::Texture*                   UpdateOverlay();
-		std::pair<ImGui::Texture*, float> GetCurrentOverlay() const;
+		OverlayData*                   UpdateOverlay();
+		std::pair<OverlayData*, float> GetCurrentOverlay() const;
 
 		void Draw();
 		void DrawOverlays();
@@ -35,11 +39,11 @@ namespace PhotoMode
 			return folderFiles[folders.index];
 		}
 
-		// folder, file
-		StringMap<StringMap<ImGui::Texture>> overlays{};
-		ImGui::Texture*                      cachedOverlay{ nullptr };
-		bool                                 updateOverlay{ false };
-		bool                                 hasOverlays{ false };
+		// folder, file -> data
+		StringMap<StringMap<OverlayData>> overlays{};
+		OverlayData*                      cachedOverlay{ nullptr };
+		bool                              updateOverlay{ false };
+		bool                              hasOverlays{ false };
 
 		FileIndex                     folders{};
 		Map<std::uint32_t, FileIndex> folderFiles{};

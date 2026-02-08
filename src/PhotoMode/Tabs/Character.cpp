@@ -96,10 +96,6 @@ namespace PhotoMode
 	void Character::GetOriginalState()
 	{
 		originalState.Get(character);
-
-		effectShaders.InitForms();
-		effectVFX.InitForms();
-		idles.InitForms();
 	}
 
 	void Character::RevertState()
@@ -139,16 +135,12 @@ namespace PhotoMode
 		}
 
 		// revert idles
-		idles.Reset();
 		if (idlePlayed) {
 			RevertIdle();
 			idlePlayed = false;
 		}
 
 		// revert effects
-		effectShaders.Reset();
-		effectVFX.Reset();
-
 		if (vfxPlayed || effectsPlayed) {
 			if (const auto processLists = RE::ProcessLists::GetSingleton()) {
 				const auto handle = character->CreateRefHandle();
@@ -178,118 +170,133 @@ namespace PhotoMode
 	void Character::Draw(bool a_resetTabs, bool a_navigateWithMouse)
 	{
 		if (a_resetTabs) {
-			a_navigateWithMouse ? ImGui::SetItemDefaultFocus() : ImGui::SetKeyboardFocusHere();
+			a_navigateWithMouse ? FUCK::SetItemDefaultFocus() : FUCK::SetKeyboardFocusHere();
 		}
 
-		if (ImGui::CheckBox(character->IsPlayerRef() ? "$PM_ShowPlayer"_T : "$PM_ShowCharacter"_T, &currentState.visible)) {
+		bool visible = currentState.visible;
+		if (FUCK::Checkbox(character->IsPlayerRef() ? "$PM_ShowPlayer"_T : "$PM_ShowCharacter"_T, &visible)) {
+			currentState.visible = visible;
 			if (const auto root = character->Get3D()) {
 				root->CullGeometry(!currentState.visible);
 			}
 		}
 
-		ImGui::Spacing();
+		FUCK::Spacing();
 
-		ImGui::BeginDisabled(!currentState.visible);
+		FUCK::BeginDisabled(!currentState.visible);
 		{
-			if (ImGui::BeginTabBar("Player#TopBar", 0)) {
+			if (FUCK::BeginTabBar("Player#TopBar", 0)) {
 				// ugly af, improve later
-				const float width = ImGui::GetContentRegionAvail().x / 4;
+				const float width = FUCK::GetContentRegionAvail().x / 4;
 
 				if (character->GetFaceGenAnimationData()) {
-					ImGui::SetNextItemWidth(width);
-					if (ImGui::BeginTabItemEx("$PM_Expressions"_T, nullptr, a_resetTabs ? ImGuiTabItemFlags_SetSelected : 0)) {
+					FUCK::SetNextItemWidth(width);
+					const int flags = a_resetTabs ? (1 << 0) : 0;  // ImGuiTabItemFlags_SetSelected = 1 << 0
+					if (FUCK::BeginTabItem("$PM_Expressions"_T, flags)) {
 						using namespace MFG;
 
-						if (ImGui::EnumSlider("$PM_Expression"_T, &mfgData.expressionData.modifier, expressions)) {
+						// Convert expressions array to vector for EnumStepper
+						static std::vector<std::string> expressionList(expressions.begin(), expressions.end());
+
+						std::uint8_t exprIdx = static_cast<std::uint8_t>(mfgData.expressionData.modifier);
+						if (FUCK::EnumStepper("$PM_Expression"_T, &exprIdx, expressionList)) {
+							mfgData.expressionData.modifier = exprIdx;
 							if (mfgData.expressionData.strength > 0) {
 								mfgData.expressionData.ApplyExpression(character);
 								mfgEdited = true;
 							}
 						}
-						ImGui::Indent();
+
+						FUCK::Indent();
 						{
-							ImGui::BeginDisabled(mfgData.expressionData.modifier == 0);
+							FUCK::BeginDisabled(mfgData.expressionData.modifier == 0);
 							{
-								if (ImGui::Slider("$PM_Intensity"_T, &mfgData.expressionData.strength, 0, 100)) {
+								if (FUCK::SliderInt("$PM_Intensity"_T, &mfgData.expressionData.strength, 0, 100)) {
 									mfgData.expressionData.ApplyExpression(character);
 									mfgEdited = true;
 								}
 							}
-							ImGui::EndDisabled();
+							FUCK::EndDisabled();
 						}
-						ImGui::Unindent();
+						FUCK::Unindent();
 
-						ImGui::Spacing();
+						FUCK::Spacing();
 
-						if (ImGui::TreeNode("$PM_Phoneme"_T)) {
+						if (FUCK::TreeNode("$PM_Phoneme"_T)) {
 							for (std::uint32_t i = 0; i < phonemes.size(); i++) {
-								if (ImGui::Slider(TRANSLATE(phonemes[i]), &mfgData.phonemeData[i].strength, 0, 100)) {
+								if (FUCK::SliderInt(TRANSLATE(phonemes[i]), &mfgData.phonemeData[i].strength, 0, 100)) {
 									mfgData.phonemeData[i].ApplyPhenome(i, character);
 									mfgEdited = true;
 								}
 							}
-							ImGui::TreePop();
+							FUCK::TreePop();
 						}
 
-						if (ImGui::TreeNode("$PM_Modifier"_T)) {
+						if (FUCK::TreeNode("$PM_Modifier"_T)) {
 							for (std::uint32_t i = 0; i < modifiers.size(); i++) {
-								if (ImGui::Slider(TRANSLATE(modifiers[i]), &mfgData.modifierData[i].strength, 0, 100)) {
+								if (FUCK::SliderInt(TRANSLATE(modifiers[i]), &mfgData.modifierData[i].strength, 0, 100)) {
 									mfgData.modifierData[i].ApplyModifier(i, character);
 									mfgEdited = true;
 								}
 							}
-							ImGui::TreePop();
+							FUCK::TreePop();
 						}
-						ImGui::EndTabItem();
+						FUCK::EndTabItem();
 					}
 				}
 
-				ImGui::SetNextItemWidth(width);
-				if (ImGui::BeginTabItemEx("$PM_Poses"_T)) {
-					idles.GetFormResultFromCombo([&](const auto& a_idle) {
-						if (idlePlayed) {
-							RevertIdle();
-							idlePlayed = false;
-						}
-						if (const auto currentProcess = character->currentProcess) {
-							if (currentProcess->PlayIdle(character, a_idle, nullptr)) {
-								idlePlayed = true;
+				FUCK::SetNextItemWidth(width);
+				if (FUCK::BeginTabItem("$PM_Poses"_T)) {
+					if (FUCK::ComboForm("$PM_Idles"_T, &selectedIdle, static_cast<std::uint8_t>(RE::FormType::Idle))) {
+						if (auto idle = RE::TESForm::LookupByID<RE::TESIdleForm>(selectedIdle)) {
+							if (idlePlayed) {
+								RevertIdle();
+								idlePlayed = false;
+							}
+							if (const auto currentProcess = character->currentProcess) {
+								if (currentProcess->PlayIdle(character, idle, nullptr)) {
+									idlePlayed = true;
+								}
 							}
 						}
-					},
-						character);
-					ImGui::EndTabItem();
+					}
+					FUCK::EndTabItem();
 				}
 
-				ImGui::SetNextItemWidth(width);
-				if (ImGui::BeginTabItemEx("$PM_Effects"_T)) {
-					effectShaders.GetFormResultFromCombo([&](const auto& a_effectShader) {
-						character->ApplyEffectShader(a_effectShader);
-						effectsPlayed = true;
-					});
-					effectVFX.GetFormResultFromCombo([&](const auto& a_vfx) {
-						if (const auto effectShader = a_vfx->data.effectShader) {
-							character->ApplyEffectShader(effectShader, -1, nullptr, a_vfx->data.flags.any(RE::BGSReferenceEffect::Flag::kFaceTarget), a_vfx->data.flags.any(RE::BGSReferenceEffect::Flag::kAttachToCamera));
+				FUCK::SetNextItemWidth(width);
+				if (FUCK::BeginTabItem("$PM_Effects"_T)) {
+					if (FUCK::ComboForm("$PM_EffectShaders"_T, &selectedEffectShader, static_cast<std::uint8_t>(RE::FormType::EffectShader))) {
+						if (auto effectShader = RE::TESForm::LookupByID<RE::TESEffectShader>(selectedEffectShader)) {
+							character->ApplyEffectShader(effectShader);
+							effectsPlayed = true;
 						}
-						if (const auto artObject = a_vfx->data.artObject) {
-							character->ApplyArtObject(artObject, -1, nullptr, a_vfx->data.flags.any(RE::BGSReferenceEffect::Flag::kFaceTarget), a_vfx->data.flags.any(RE::BGSReferenceEffect::Flag::kAttachToCamera));
+					}
+
+					if (FUCK::ComboForm("$PM_VisualEffects"_T, &selectedVFX, static_cast<std::uint8_t>(RE::FormType::ReferenceEffect))) {
+						if (auto a_vfx = RE::TESForm::LookupByID<RE::BGSReferenceEffect>(selectedVFX)) {
+							if (const auto effectShader = a_vfx->data.effectShader) {
+								character->ApplyEffectShader(effectShader, -1, nullptr, a_vfx->data.flags.any(RE::BGSReferenceEffect::Flag::kFaceTarget), a_vfx->data.flags.any(RE::BGSReferenceEffect::Flag::kAttachToCamera));
+							}
+							if (const auto artObject = a_vfx->data.artObject) {
+								character->ApplyArtObject(artObject, -1, nullptr, a_vfx->data.flags.any(RE::BGSReferenceEffect::Flag::kFaceTarget), a_vfx->data.flags.any(RE::BGSReferenceEffect::Flag::kAttachToCamera));
+							}
+							vfxPlayed = true;
 						}
-						vfxPlayed = true;
-					});
-					ImGui::EndTabItem();
+					}
+					FUCK::EndTabItem();
 				}
 
-				ImGui::SetNextItemWidth(width);
-				if (ImGui::BeginTabItemEx("$PM_Transforms"_T)) {
+				FUCK::SetNextItemWidth(width);
+				if (FUCK::BeginTabItem("$PM_Transforms"_T)) {
 					currentState.rotZ = RE::rad_to_deg(character->GetAngleZ());
-					if (ImGui::Slider("$PM_Rotation"_T, &currentState.rotZ, 0.0f, 360.0f)) {
+					if (FUCK::SliderFloat("$PM_Rotation"_T, &currentState.rotZ, 0.0f, 360.0f)) {
 						character->SetHeading(RE::deg_to_rad(currentState.rotZ));
 						rotationChanged = true;
 					}
 
-					bool update = ImGui::Slider("$PM_PositionLeftRight"_T, &currentState.pos.x, -150.0f, 150.0f);
-					update |= ImGui::Slider("$PM_PositionNearFar"_T, &currentState.pos.y, -150.0f, 150.0f);
-					update |= ImGui::Slider("$PM_Elevation"_T, &currentState.pos.z, -150.0f, 150.0f);
+					bool update = FUCK::SliderFloat("$PM_PositionLeftRight"_T, &currentState.pos.x, -150.0f, 150.0f);
+					update |= FUCK::SliderFloat("$PM_PositionNearFar"_T, &currentState.pos.y, -150.0f, 150.0f);
+					update |= FUCK::SliderFloat("$PM_Elevation"_T, &currentState.pos.z, -150.0f, 150.0f);
 
 					if (update) {
 						auto charController = character->GetCharController();
@@ -300,11 +307,11 @@ namespace PhotoMode
 						positionChanged = true;
 					}
 
-					ImGui::EndTabItem();
+					FUCK::EndTabItem();
 				}
-				ImGui::EndTabBar();
+				FUCK::EndTabBar();
 			}
 		}
-		ImGui::EndDisabled();
+		FUCK::EndDisabled();
 	}
 }

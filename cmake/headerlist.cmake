@@ -5,21 +5,14 @@ set(headers ${headers}
 	src/ENB/ENB.h
 	src/ENB/ENBSeriesAPI.h
 	src/ENB/ENBSeriesSDK.h
+	src/FUCK_API.h
 	src/Graphics.h
 	src/Hooks.h
-	src/ImGui/Backend/imgui_impl_win32.h
-	src/ImGui/FormComboBox.h
-	src/ImGui/Graphics.h
-	src/ImGui/IconsFontAwesome6.h
-	src/ImGui/IconsFonts.h
-	src/ImGui/Renderer.h
-	src/ImGui/Styles.h
-	src/ImGui/Util.h
-	src/ImGui/Widgets.h
 	src/Input.h
 	src/PCH.h
 	src/Papyrus.h
 	src/PhotoMode/Hotkeys.h
+	src/PhotoMode/IconsFontAwesome6.h
 	src/PhotoMode/Manager.h
 	src/PhotoMode/Tabs/Camera.h
 	src/PhotoMode/Tabs/CameraPositions.h
@@ -30,5 +23,4 @@ set(headers ${headers}
 	src/Screenshots/LoadScreen.h
 	src/Screenshots/Manager.h
 	src/Settings.h
-	src/Translation.h
 )

@@ -1,7 +1,5 @@
 #include "Overlays.h"
 
-#include "ImGui/Widgets.h"
-
 namespace PhotoMode
 {
 	void Overlays::LoadOverlays()
@@ -14,7 +12,7 @@ namespace PhotoMode
 			return;
 		}
 
-		std::map<std::string, std::vector<std::pair<std::wstring, std::string>>> imagePaths;
+		std::map<std::string, std::vector<std::pair<std::string, std::string>>> imagePaths;
 
 		std::string currentSubFolder;
 		const auto  iterator = std::filesystem::recursive_directory_iterator(overlaysPath);
@@ -25,7 +23,7 @@ namespace PhotoMode
 				} else if (entry.is_regular_file()) {
 					if (const auto& path = entry.path(); !path.empty() && path.extension() == ".png") {
 						auto fileName = path.filename().string();
-						imagePaths[currentSubFolder].push_back({ path.wstring(), fileName.erase(fileName.size() - 4) });
+						imagePaths[currentSubFolder].push_back({ path.string(), fileName.erase(fileName.size() - 4) });
 					}
 				}
 			}
@@ -33,27 +31,44 @@ namespace PhotoMode
 
 		for (auto& [folder, files] : imagePaths) {
 			for (auto& [path, fileName] : files) {
-				overlays[folder].emplace(fileName, ImGui::Texture(path));
+				// Load UI Texture
+				void* tex = FUCK::LoadImage(path.c_str(), true);
+
+				if (tex) {
+					// Load CPU Image for screenshots
+					auto scratch = std::make_shared<DirectX::ScratchImage>();
+
+					// Use std::filesystem::path to handle UTF-8 -> Wide String conversion correctly on Windows
+					std::filesystem::path fsPath(path);
+					auto                  hr = DirectX::LoadFromWICFile(fsPath.c_str(), DirectX::WIC_FLAGS_NONE, nullptr, *scratch);
+
+					if (SUCCEEDED(hr)) {
+						overlays[folder].emplace(fileName, OverlayData{ tex, scratch });
+					} else {
+						// If we can't load the CPU image, release the UI texture and skip
+						FUCK::ReleaseImage(tex);
+					}
+				}
 			}
 		}
 
 		hasOverlays = !overlays.empty();
 
 		if (hasOverlays) {
-			for (auto& files : overlays | std::views::values) {
-				for (auto& overlay : files | std::views::values) {
-					overlay.Load(true);
-				}
-			}
-
 			std::uint32_t index = 0;
 
 			for (auto& [folder, files] : imagePaths) {
+				if (overlays.find(folder) == overlays.end())
+					continue;
+
 				folders.names.push_back(folder);
 
 				folderFiles[index].names.push_back("$PM_NONE"_T);
-				for (auto& fileName : files | std::views::values) {
-					folderFiles[index].names.push_back(fileName);
+				for (auto& [path, fileName] : files) {
+					// Only add if it was successfully loaded
+					if (overlays[folder].contains(fileName)) {
+						folderFiles[index].names.push_back(fileName);
+					}
 				}
 
 				index++;
@@ -74,7 +89,7 @@ namespace PhotoMode
 		alpha = 1.0f;
 	}
 
-	ImGui::Texture* Overlays::UpdateOverlay()
+	OverlayData* Overlays::UpdateOverlay()
 	{
 		if (const auto it = overlays.find(folders.get_file()); it != overlays.end()) {
 			const auto file = GetFiles().get_file();
@@ -86,7 +101,7 @@ namespace PhotoMode
 		return nullptr;
 	}
 
-	std::pair<ImGui::Texture*, float> Overlays::GetCurrentOverlay() const
+	std::pair<OverlayData*, float> Overlays::GetCurrentOverlay() const
 	{
 		return { cachedOverlay, alpha };
 	}
@@ -94,10 +109,16 @@ namespace PhotoMode
 	void Overlays::Draw()
 	{
 		if (!hasOverlays) {
-			ImGui::TextUnformatted("$PM_NoOverlaysInstalled"_T);
+			FUCK::TextUnformatted("$PM_NoOverlaysInstalled"_T);
 		} else {
-			if (ImGui::EnumSlider("$PM_Category"_T, &folders.index, folders.names, false)) {
-				// reset others to NONE
+			static std::vector<std::string> categoryList;
+			if (categoryList.empty()) {
+				categoryList = folders.names;
+			}
+
+			std::uint8_t folderIdx = static_cast<std::uint8_t>(folders.index);
+			if (FUCK::EnumStepper("$PM_Category"_T, &folderIdx, categoryList)) {
+				folders.index = folderIdx;
 				for (auto& [index, files] : folderFiles) {
 					if (index != folders.index) {
 						files.index = 0;
@@ -107,33 +128,33 @@ namespace PhotoMode
 				updateOverlay = false;
 				alpha = 1.0f;
 			}
-			ImGui::Indent();
+
+			FUCK::Indent();
 			{
-				if (ImGui::EnumSlider("$PM_Overlay"_T, &GetFiles().index, GetFiles().names, false)) {
+				std::vector<std::string> overlayList = GetFiles().names;
+				std::uint32_t            overlayIdx = GetFiles().index;
+
+				if (FUCK::EnumStepper("$PM_Overlay"_T, &overlayIdx, overlayList)) {
+					GetFiles().index = overlayIdx;
 					updateOverlay = true;
 					alpha = 1.0f;
 				}
 			}
-			ImGui::Unindent();
-			ImGui::Slider("$PM_Intensity"_T, &alpha, 0.0f, 1.0f);
+			FUCK::Unindent();
+
+			FUCK::SliderFloat("$PM_Intensity"_T, &alpha, 0.0f, 1.0f);
 		}
 	}
 
 	void Overlays::DrawOverlays()
 	{
-		const auto drawList = ImGui::GetBackgroundDrawList();
-		const auto size = ImGui::GetWindowSize();
-
-		constexpr auto topLeft = ImVec2(0.0f, 0.0f);
-		const auto static bottomRight = ImVec2(size.x, size.y);
-
 		if (updateOverlay) {
 			updateOverlay = false;
 			cachedOverlay = UpdateOverlay();
 		}
 
-		if (cachedOverlay) {
-			drawList->AddImage((ImTextureID)cachedOverlay->srView.Get(), topLeft, bottomRight, ImVec2(0, 0), ImVec2(1, 1), static_cast<ImU32>(ImColor(1.0f, 1.0f, 1.0f, alpha)));
+		if (cachedOverlay && cachedOverlay->texture) {
+			FUCK::DrawBackgroundImage(cachedOverlay->texture, alpha);
 		}
 	}
 }

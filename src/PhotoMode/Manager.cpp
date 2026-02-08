@@ -1,15 +1,117 @@
 #include "Manager.h"
 
 #include "Hotkeys.h"
-#include "ImGui/IconsFonts.h"
-#include "ImGui/Styles.h"
-#include "ImGui/Widgets.h"
-#include "Screenshots/Manager.h"
-
 #include "Input.h"
+#include "Screenshots/Manager.h"
 
 namespace PhotoMode
 {
+	// ==========================================
+	// ITool Interface Implementation
+	// ==========================================
+
+	bool Manager::OnAsyncInput(const void* inputEvent)
+	{
+		auto hotkeys = MANAGER(PhotoMode::Hotkeys);
+
+		// Always check toggle hotkey (works when inactive too)
+		if (FUCK::UpdateManagedHotkey(inputEvent, hotkeys->GetToggleHotkey())) {
+			return true;
+		}
+
+		if (FUCK::ProcessManagedHotkey(inputEvent, hotkeys->GetToggleHotkey())) {
+			ToggleActive();
+			return true;
+		}
+
+		// Only process other hotkeys when PhotoMode is active
+		if (!IsActive()) {
+			return false;
+		}
+
+		auto input = MANAGER(Input);
+
+		// Screenshot hotkey
+		if (FUCK::UpdateManagedHotkey(inputEvent, hotkeys->GetScreenshotHotkey())) {
+			return true;
+		}
+
+		if (FUCK::ProcessManagedHotkey(inputEvent, hotkeys->GetScreenshotHotkey())) {
+			input->QueueScreenshot(false);
+			return true;
+		}
+
+		// Toggle UI visibility
+		if (FUCK::UpdateManagedHotkey(inputEvent, hotkeys->GetToggleMenusHotkey())) {
+			return true;
+		}
+
+		if (FUCK::ProcessManagedHotkey(inputEvent, hotkeys->GetToggleMenusHotkey())) {
+			ToggleUI();
+			return true;
+		}
+
+		// ESC to close (also handled by WindowFlags::kCloseOnEsc)
+		if (FUCK::UpdateManagedHotkey(inputEvent, hotkeys->GetEscapeHotkey())) {
+			return true;
+		}
+
+		if (FUCK::ProcessManagedHotkey(inputEvent, hotkeys->GetEscapeHotkey())) {
+			QuitOnEscape();
+			return true;
+		}
+
+		// Only process tab/control hotkeys when UI is visible
+		if (!IsHidden()) {
+			// Next Tab
+			if (FUCK::UpdateManagedHotkey(inputEvent, hotkeys->GetNextTabHotkey())) {
+				return true;
+			}
+
+			if (FUCK::ProcessManagedHotkey(inputEvent, hotkeys->GetNextTabHotkey())) {
+				NavigateTab(false);
+				return true;
+			}
+
+			// Previous Tab
+			if (FUCK::UpdateManagedHotkey(inputEvent, hotkeys->GetPreviousTabHotkey())) {
+				return true;
+			}
+
+			if (FUCK::ProcessManagedHotkey(inputEvent, hotkeys->GetPreviousTabHotkey())) {
+				NavigateTab(true);
+				return true;
+			}
+
+			// Freeze Time
+			if (FUCK::UpdateManagedHotkey(inputEvent, hotkeys->GetFreezeTimeHotkey())) {
+				return true;
+			}
+
+			if (FUCK::ProcessManagedHotkey(inputEvent, hotkeys->GetFreezeTimeHotkey())) {
+				RE::Main::GetSingleton()->freezeTime = !RE::Main::GetSingleton()->freezeTime;
+				return true;
+			}
+
+			// Reset
+			if (FUCK::UpdateManagedHotkey(inputEvent, hotkeys->GetResetHotkey())) {
+				return true;
+			}
+
+			if (FUCK::ProcessManagedHotkey(inputEvent, hotkeys->GetResetHotkey())) {
+				Revert(false);
+				return true;
+			}
+		}
+
+		// Don't consume - let FUCK_API handle window input
+		return false;
+	}
+
+	// ==========================================
+	// Manager Implementation
+	// ==========================================
+
 	void Manager::Register()
 	{
 		tweenMenuInstalled = GetModuleHandle(L"TweenMenuOverhaul") != nullptr;
@@ -23,6 +125,11 @@ namespace PhotoMode
 			SKSE::GetModCallbackEventSource()->AddEventSink(this);
 			logger::info("Registered for mod callback event");
 		}
+
+		// Register FUCK Windows
+		FUCK::RegisterWindow(&m_backgroundWindow);
+		FUCK::RegisterWindow(&m_controlsWindow);
+		FUCK::RegisterWindow(&m_barWindow);
 	}
 
 	void Manager::LoadMCMSettings(const CSimpleIniA& a_ini)
@@ -92,6 +199,10 @@ namespace PhotoMode
 	{
 		hiddenUI = !hiddenUI;
 
+		// Toggle window visibility in FUCK system
+		m_controlsWindow.SetOpen(!hiddenUI && activated);
+		m_barWindow.SetOpen(!hiddenUI && activated);
+
 		const auto UI = RE::UI::GetSingleton();
 		UI->ShowMenus(!UI->IsShowingMenus());
 		RE::PlaySound("UIMenuFocus");
@@ -137,17 +248,20 @@ namespace PhotoMode
 		// apply mcm settings
 		FreeCamera::translateSpeed = freeCameraSpeed;
 		if (freezeTimeOnStart) {
-			RE::Main::GetSingleton()->freezeTime = true;
+			FUCK::SetGameTimeFrozen(true);
 		}
 
 		// load default screenshot keys
 		// keybindings can change?
 		MANAGER(Input)->LoadDefaultKeys();
 
-		// refresh style
-		ImGui::Styles::GetSingleton()->RefreshStyle();
-
 		activated = true;
+
+		// Open FUCK Windows
+		m_backgroundWindow.SetOpen(true);
+		m_controlsWindow.SetOpen(!hiddenUI);
+		m_barWindow.SetOpen(!hiddenUI);
+
 		if (activeGlobal) {
 			activeGlobal->value = 1.0f;
 		}
@@ -173,8 +287,10 @@ namespace PhotoMode
 			return false;
 		}
 
-		// disable controls
-		if (ImGui::GetIO().WantTextInput) {
+		// Check if text input is active via FUCK
+		bool wantText = FUCK::IsAnyItemActive();
+
+		if (wantText) {
 			if (!allowTextInput) {
 				allowTextInput = true;
 				RE::ControlMap::GetSingleton()->AllowTextInput(true);
@@ -221,8 +337,14 @@ namespace PhotoMode
 
 		updateKeyboardFocus = false;
 
-		MANAGER(Input)->ToggleCursor(false);
-		MANAGER(Input)->ResetInputDevices();
+		// Reset FUCK cursor if managed
+		FUCK::ForceCursor(false);
+		FUCK::SetGameTimeFrozen(false);
+
+		// Close FUCK Windows
+		m_backgroundWindow.SetOpen(false);
+		m_controlsWindow.SetOpen(false);
+		m_barWindow.SetOpen(false);
 
 		activated = false;
 		if (activeGlobal) {
@@ -239,7 +361,8 @@ namespace PhotoMode
 				Activate();
 			}
 		} else {
-			if (!ImGui::GetIO().WantTextInput && !ShouldBlockInput()) {
+			bool wantText = FUCK::IsAnyItemActive();
+			if (!wantText && !ShouldBlockInput()) {
 				Deactivate();
 			}
 		}
@@ -386,7 +509,7 @@ namespace PhotoMode
 		resetRootIdle = RE::TESForm::LookupByEditorID<RE::TESIdleForm>("ResetRoot");
 	}
 
-	std::pair<ImGui::Texture*, float> Manager::GetOverlay() const
+	std::pair<OverlayData*, float> Manager::GetOverlay() const
 	{
 		return overlaysTab.GetCurrentOverlay();
 	}
@@ -396,267 +519,236 @@ namespace PhotoMode
 		return isCursorHoveringOverWindow;
 	}
 
-	void Manager::Draw()
+	void Manager::DrawBackground()
 	{
-		ImGui::SetNextWindowPos(ImGui::GetNativeViewportPos());
-		ImGui::SetNextWindowSize(ImGui::GetNativeViewportSize());
-
-		ImGui::Begin("##Main", nullptr, ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoDecoration);
-		{
-			// render hierachy
-			overlaysTab.DrawOverlays();
-
-			if (!IsHidden()) {
-				CameraGrid::Draw();
-				DrawBar();
-				DrawControls();
-			}
+		if (!OnFrameUpdate()) {
+			return;
 		}
-		ImGui::End();
+
+		// Render hierarchy for background items
+		overlaysTab.DrawOverlays();
+
+		if (!IsHidden()) {
+			CameraGrid::Draw();
+		}
 	}
 
 	void Manager::DrawControls()
 	{
-		const static auto center = ImGui::GetNativeViewportCenter();
-		const static auto size = ImGui::GetNativeViewportSize();
+		FUCK::ExtendWindowPastBorder();
 
-		const static auto third_width = size.x / 3;
-		const static auto third_height = size.y / 3;
+		if (resetWindow) {
+			currentTab = kCamera;
+		}
 
-		constexpr auto windowFlags = ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_NoDecoration;
+		// console already covers menu
+		if (blockInputToPhotoMode) {
+			FUCK::PushStyleVar(ImGuiStyleVar_DisabledAlpha, 0.6f);
+		}
 
-		ImGui::SetNextWindowPos(ImVec2(center.x + third_width, center.y + third_height * 0.8f), ImGuiCond_Always, ImVec2(0.5, 0.5));
-		ImGui::SetNextWindowSize(ImVec2(size.x / 3.25f, size.y / 3.125f));
-
-		bool navigateWithMouse = MANAGER(Input)->CanNavigateWithMouse();
-
-		ImGui::Begin("$PM_Title_Menu"_T, nullptr, windowFlags);
+		FUCK::BeginDisabled(blockInputToPhotoMode);
 		{
-			ImGui::ExtendWindowPastBorder();
-
-			if (resetWindow) {
-				currentTab = kCamera;
-			}
-
-			// console already covers menu
-			if (blockInputToPhotoMode) {
-				ImGui::PushStyleVar(ImGuiStyleVar_DisabledAlpha, ImGui::GetStyle().Alpha);
-			}
-
-			ImGui::BeginDisabled(blockInputToPhotoMode);
+			// Q [Tab Tab Tab Tab Tab] E
+			FUCK::BeginGroup();
 			{
-				// Q [Tab Tab Tab Tab Tab] E
-				ImGui::BeginGroup();
-				{
-					const auto buttonSize = ImGui::ButtonIcon(MANAGER(Hotkeys)->PreviousTabKey());
-					ImGui::SameLine();
+				const auto buttonSize = ImVec2(0, 0);
 
-					const float tabWidth = (ImGui::GetContentRegionAvail().x - (buttonSize.x + ImGui::GetStyle().ItemSpacing.x * tabs.size())) / tabs.size();
+				ImVec2        iconSize;
+				std::uint32_t prevKey = MANAGER(Hotkeys)->PreviousTabKey();
+				if (prevKey == 0)
+					prevKey = 16;  // Q
+				void* prevIcon = FUCK::GetIconForKey(prevKey, &iconSize);
+				if (iconSize.x <= 0)
+					iconSize = ImVec2(32, 32);
 
-					ImGui::PushItemFlag(ImGuiItemFlags_NoNav, true);
+				FUCK::ButtonIconWithLabel("##Prev", prevIcon, iconSize, false, false);
+				FUCK::SameLine();
 
-					ImGui::PushStyleColor(ImGuiCol_Button, ImVec4());
-					ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4());
-					ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4());
+				float availW = FUCK::GetContentRegionAvail().x;
 
-					for (std::int32_t i = 0; i < tabs.size(); ++i) {
-						bool activeTab = (currentTab == i) || hoveredTabs[i] == true;
-						if (!activeTab) {
-							ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-						} else {
-							ImGui::PushFont(MANAGER(IconFont)->GetLargeFont());
-						}
-						ImGui::Button(tabIcons[i], ImVec2(tabWidth, ImGui::GetFrameHeightWithSpacing()));
-						if (ImGui::IsItemClicked() && currentTab != i) {
-							currentTab = i;
-						}
-						hoveredTabs[i] = ImGui::IsItemHovered(ImGuiHoveredFlags_NoNavOverride);
-						if (!activeTab) {
-							ImGui::PopStyleColor();
-						} else {
-							ImGui::PopFont();
-						}
-						ImGui::SameLine();
+				float btnWidth = FUCK::GetFrameHeightWithSpacing();
+				float totalBtnWidth = btnWidth * 3.0f;
+
+				const float tabWidth = (availW > totalBtnWidth) ? ((availW - totalBtnWidth) / tabs.size()) : 40.0f;
+
+				FUCK::PushItemFlag(ItemFlags::kNoNav, true);
+				FUCK::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+				FUCK::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0, 0, 0, 0));
+				FUCK::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0, 0, 0, 0));
+				FUCK::PushStyleVar(ImGuiStyleVar_SelectableTextAlign, ImVec2(0.5f, 0.5f));
+
+				for (std::int32_t i = 0; i < tabs.size(); ++i) {
+					bool activeTab = (currentTab == i) || hoveredTabs[i] == true;
+					if (!activeTab) {
+						FUCK::PushStyleColor(ImGuiCol_Text, FUCK::GetStyleColorVec4(ImGuiCol_TextDisabled));
+					} else {
+						FUCK::PushFont(FUCK::GetFont(FUCK_Font::kLarge));
 					}
-					ImGui::PopStyleColor(3);
-					ImGui::PopItemFlag();
 
-					ImGui::SameLine();
-					ImGui::ButtonIcon(MANAGER(Hotkeys)->NextTabKey());
+					if (FUCK::Selectable(tabIcons[i], currentTab == i, 0, ImVec2(tabWidth, FUCK::GetFrameHeightWithSpacing()))) {
+						currentTab = i;
+					}
+
+					hoveredTabs[i] = FUCK::IsItemHovered();
+					if (!activeTab) {
+						FUCK::PopStyleColor();
+					} else {
+						FUCK::PopFont();
+					}
+					FUCK::SameLine();
 				}
-				ImGui::EndGroup();
+				FUCK::PopStyleVar();
+				FUCK::PopStyleColor(3);
+				FUCK::PopItemFlag();
 
-				//		CAMERA
-				// ----------------
-				ImGui::CenteredText(currentTab != TAB_TYPE::kCharacter ? TRANSLATE(tabs[currentTab]) : characterTab[cachedCharacter->GetFormID()].GetName());
-				ImGui::SeparatorEx(ImGuiSeparatorFlags_Horizontal, ImGui::GetUserStyleVar(ImGui::USER_STYLE::kSeparatorThickness));
+				std::uint32_t nextKey = MANAGER(Hotkeys)->NextTabKey();
+				if (nextKey == 0)
+					nextKey = 18;  // E
+				void* nextIcon = FUCK::GetIconForKey(nextKey, &iconSize);
+				if (iconSize.x <= 0)
+					iconSize = ImVec2(32, 32);
 
-				// content
-				ImGui::SetNextWindowBgAlpha(0.0f);  // child bg color is added ontop of window
-				ImGui::BeginChild("##PhotoModeChild", ImVec2(0, 0), ImGuiChildFlags_None, windowFlags);
-				{
-					ImGui::Spacing();
+				FUCK::ButtonIconWithLabel("##Next", nextIcon, iconSize, false, false);
+			}
+			FUCK::EndGroup();
 
-					if (restoreLastFocusID) {
-						navigateWithMouse ? ImGui::SetHoveredID(lastHoveredID) : ImGui::SetFocusID(lastFocusedID, ImGui::GetCurrentWindow());
+			//		CAMERA
+			// ----------------
+			FUCK::CenteredText(currentTab != TAB_TYPE::kCharacter ? FUCK::Translate(tabs[currentTab]) : characterTab[cachedCharacter->GetFormID()].GetName());
+			FUCK::SeparatorThick();
 
-						restoreLastFocusID = false;
-					} else if (updateKeyboardFocus) {
-						if (currentTab == TAB_TYPE::kCharacter) {
+			// content
+			FUCK::BeginChild("##PhotoModeChild", ImVec2(0, 0), false, 0);
+			{
+				FUCK::Spacing();
+
+				if (restoreLastFocusID) {
+					restoreLastFocusID = false;
+				} else if (updateKeyboardFocus) {
+					if (currentTab == TAB_TYPE::kCharacter) {
+						resetPlayerTabs = true;
+					}
+					FUCK::SetItemDefaultFocus();
+					updateKeyboardFocus = false;
+				}
+
+				switch (currentTab) {
+				case TAB_TYPE::kCamera:
+					{
+						if (resetWindow) {
+							FUCK::SetItemDefaultFocus();
+							resetWindow = false;
+						}
+						cameraTab.Draw();
+					}
+					break;
+				case TAB_TYPE::kTime:
+					timeTab.Draw();
+					break;
+				case TAB_TYPE::kCharacter:
+					{
+						const auto consoleRef = RE::Console::GetSelectedRef();
+						if (!consoleRef || !consoleRef->Is(RE::FormType::ActorCharacter) || consoleRef->IsDisabled() || consoleRef->IsDeleted() || !consoleRef->Is3DLoaded()) {
+							prevCachedCharacter = cachedCharacter;
+							cachedCharacter = RE::PlayerCharacter::GetSingleton();
+						} else {
+							prevCachedCharacter = cachedCharacter;
+							cachedCharacter = consoleRef->As<RE::Actor>();
+							if (!characterTab.contains(cachedCharacter->GetFormID())) {
+								characterTab.emplace(cachedCharacter->GetFormID(), Character(cachedCharacter));
+							}
+						}
+
+						if (cachedCharacter != prevCachedCharacter) {
 							resetPlayerTabs = true;
 						}
-						navigateWithMouse ? ImGui::SetItemDefaultFocus() : ImGui::SetKeyboardFocusHere();
-						updateKeyboardFocus = false;
-					}
 
-					switch (currentTab) {
-					case TAB_TYPE::kCamera:
-						{
-							if (resetWindow) {
-								navigateWithMouse ? ImGui::SetItemDefaultFocus() : ImGui::SetKeyboardFocusHere();
-								resetWindow = false;
-							}
-							cameraTab.Draw();
+						characterTab[cachedCharacter->GetFormID()].Draw(resetPlayerTabs, true);
+
+						if (resetPlayerTabs) {
+							resetPlayerTabs = false;
 						}
-						break;
-					case TAB_TYPE::kTime:
-						timeTab.Draw();
-						break;
-					case TAB_TYPE::kCharacter:
-						{
-							const auto consoleRef = RE::Console::GetSelectedRef();
-							if (!consoleRef || !consoleRef->Is(RE::FormType::ActorCharacter) || consoleRef->IsDisabled() || consoleRef->IsDeleted() || !consoleRef->Is3DLoaded()) {
-								prevCachedCharacter = cachedCharacter;
-								cachedCharacter = RE::PlayerCharacter::GetSingleton();
-							} else {
-								prevCachedCharacter = cachedCharacter;
-								cachedCharacter = consoleRef->As<RE::Actor>();
-								if (!characterTab.contains(cachedCharacter->GetFormID())) {
-									characterTab.emplace(cachedCharacter->GetFormID(), Character(cachedCharacter));
-								}
-							}
-
-							if (cachedCharacter != prevCachedCharacter) {
-								resetPlayerTabs = true;
-							}
-
-							characterTab[cachedCharacter->GetFormID()].Draw(resetPlayerTabs, navigateWithMouse);
-
-							if (resetPlayerTabs) {
-								resetPlayerTabs = false;
-							}
-						}
-						break;
-					case TAB_TYPE::kFilters:
-						filterTab.Draw();
-						break;
-					case TAB_TYPE::kOverlays:
-						overlaysTab.Draw();
-						break;
-					default:
-						break;
 					}
-
-					noItemsFocused = navigateWithMouse ?
-					                     (!ImGui::IsAnyItemHovered() || !isCursorHoveringOverWindow) :
-					                     (!ImGui::IsAnyItemFocused() || !ImGui::IsWindowFocused());
-					lastFocusedID = ImGui::GetFocusID();
-					lastHoveredID = ImGui::GetHoveredID();
+					break;
+				case TAB_TYPE::kFilters:
+					filterTab.Draw();
+					break;
+				case TAB_TYPE::kOverlays:
+					overlaysTab.Draw();
+					break;
+				default:
+					break;
 				}
-				ImGui::EndChild();
-			}
-			ImGui::EndDisabled();
 
-			if (blockInputToPhotoMode) {
-				ImGui::PopStyleVar();
+				noItemsFocused = !FUCK::IsAnyItemActive();
 			}
-
-			if (navigateWithMouse) {
-				UpdateMouseHoveringOverWindow();
-			}
+			FUCK::EndChild();
 		}
-		ImGui::End();
+		FUCK::EndDisabled();
+
+		if (blockInputToPhotoMode) {
+			FUCK::PopStyleVar();
+		}
 	}
 
-	void Manager::DrawBar() const
+	void Manager::DrawBar()
 	{
-		const static auto center = ImGui::GetNativeViewportCenter();
-		const static auto size = ImGui::GetNativeViewportSize();
-		const static auto offsetY = size.y / 25.0f;
+		FUCK::ExtendWindowPastBorder();
+		auto   hotkeys = MANAGER(Hotkeys);
+		ImVec2 iconSize;
 
-		ImGui::SetNextWindowPos(ImVec2(center.x, size.y - offsetY), ImGuiCond_Always, ImVec2(0.5, 0.5));
-
-		bool canNavigateWithMouse = MANAGER(Input)->CanNavigateWithMouse();
-
-		ImGui::Begin("##Bar", nullptr, ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize);  // same offset as control window
+		FUCK::BeginGroup();
 		{
-			ImGui::ExtendWindowPastBorder();
-
-			const static auto takePhotoLabel = "$PM_TAKEPHOTO"_T;
-			const static auto toggleMenusLabel = "$PM_TOGGLEMENUS"_T;
-			const auto        resetLabel = GetResetAll() ? "$PM_RESET_ALL"_T : "$PM_RESET"_T;
-			const static auto freezeTimeLabel = "$PM_FREEZETIME"_T;
-			const static auto panCameraLabel = "$PM_PAN_CAMERA"_T;
-
-			const auto& takePhotoIcon = MANAGER(Hotkeys)->TakePhotoIcon();
-			const auto& toggleMenusIcon = MANAGER(Hotkeys)->ToggleMenusIcon();
-			const auto& resetIcon = MANAGER(Hotkeys)->ResetIcon();
-			const auto& freezeTimeIcon = MANAGER(Hotkeys)->FreezeTimeIcon();
-			const auto& panCameraIcon = MANAGER(Hotkeys)->PanCameraIcon();
-
-			// const static auto togglePMLabel = "$PM_EXIT"_T;
-			// const auto& togglePMIcons = MANAGER(Hotkeys)->TogglePhotoModeIcons();
-
-			// calc total elements width
-			const ImGuiStyle& style = ImGui::GetStyle();
-
-			float width = 0.0f;
-
-			const auto calc_width = [&](const IconFont::IconTexture* a_icon, const char* a_textLabel, bool a_sameLine = true) {
-				width += a_icon->size.x;
-				width += style.ItemSpacing.x;
-				width += ImGui::CalcTextSize(a_textLabel).x;
-				if (a_sameLine) {
-					width += style.ItemSpacing.x;
-				}
-			};
-
-			if (canNavigateWithMouse) {
-				calc_width(panCameraIcon, panCameraLabel);
+			// 1. Screenshot
+			std::uint32_t key = hotkeys->TakePhotoKey();
+			void*         icon = FUCK::GetIconForKey(key, &iconSize);
+			if (FUCK::ButtonIconWithLabel("$PM_TAKEPHOTO"_T, icon, iconSize, false, false)) {
+				MANAGER(Input)->QueueScreenshot(false);
 			}
-			calc_width(takePhotoIcon, takePhotoLabel);
-			calc_width(toggleMenusIcon, toggleMenusLabel);
-			calc_width(freezeTimeIcon, freezeTimeLabel);
-			calc_width(resetIcon, resetLabel, false);
 
-			/*for (const auto& icon : togglePMIcons) {
-				width += icon->size.x;
+			FUCK::SameLine();
+
+			// 2. Hide UI
+			key = hotkeys->ToggleMenusKey();
+			icon = FUCK::GetIconForKey(key, &iconSize);
+			if (FUCK::ButtonIconWithLabel("$PM_TOGGLEMENUS"_T, icon, iconSize, false, false)) {
+				ToggleUI();
 			}
-			width += style.ItemSpacing.x;
-			width += ImGui::CalcTextSize(togglePMLabel).x;*/
 
-			// align at center
-			ImGui::AlignForWidth(width);
+			FUCK::SameLine();
 
-			// draw
-			constexpr auto draw_button = [](const IconFont::IconTexture* a_icon, const char* a_textLabel, bool a_sameLine = true) {
-				ImGui::ButtonIconWithLabel(a_textLabel, a_icon, true);
-				if (a_sameLine) {
-					ImGui::SameLine();
-				}
-			};
+			// 3. Reset / Reset All
+			key = hotkeys->ResetKey();
+			icon = FUCK::GetIconForKey(key, &iconSize);
+			const char* label = GetResetAll() ? "$PM_RESET_ALL"_T : "$PM_RESET"_T;
+			FUCK::ButtonIconWithLabel(label, icon, iconSize, false, false);
 
-			if (canNavigateWithMouse) {
-				draw_button(panCameraIcon, panCameraLabel);
+			FUCK::SameLine();
+
+			// 4. Freeze Time
+			key = hotkeys->FreezeTimeKey();
+			icon = FUCK::GetIconForKey(key, &iconSize);
+			if (FUCK::ButtonIconWithLabel("$PM_FREEZETIME"_T, icon, iconSize, false, false)) {
+				FUCK::SetSoftPause;
 			}
-			draw_button(takePhotoIcon, takePhotoLabel);
-			draw_button(toggleMenusIcon, toggleMenusLabel);
-			draw_button(freezeTimeIcon, freezeTimeLabel);
-			draw_button(resetIcon, resetLabel, false);
 
-			// ImGui::ButtonIconWithLabel(togglePMLabel, togglePMIcons, true);
+			FUCK::SameLine();
+
+			// 5. Pan Camera
+			key = hotkeys->PanCameraKey();
+			icon = FUCK::GetIconForKey(key, &iconSize);
+			FUCK::ButtonIconWithLabel("$PM_PAN_CAMERA"_T, icon, iconSize, false, false);
+
+			FUCK::SameLine();
+
+			// 6. Exit (ESC)
+			key = Hotkeys::Manager::EscapeKey();
+			icon = FUCK::GetIconForKey(key, &iconSize);
+			if (FUCK::ButtonIconWithLabel("$PM_EXIT"_T, icon, iconSize, false, false)) {
+				Deactivate();
+			}
 		}
-		ImGui::End();
+		FUCK::EndGroup();
 	}
 
 	bool Manager::SetupJournalMenu() const
@@ -757,9 +849,9 @@ namespace PhotoMode
 	void Manager::UpdateMouseHoveringOverWindow()
 	{
 		constexpr float buffer = 50.0f;
-		auto            mousePos = ImGui::GetMousePos();
-		auto            winPos = ImGui::GetWindowPos();
-		auto            winSize = ImGui::GetWindowSize();
+		auto            mousePos = FUCK::GetMousePos();
+		auto            winPos = FUCK::GetWindowPos();
+		auto            winSize = FUCK::GetWindowSize();
 
 		isCursorHoveringOverWindow =
 			mousePos.x >= winPos.x - buffer &&
@@ -780,8 +872,8 @@ namespace PhotoMode
 				if (IsActive() && IsHidden()) {
 					ToggleUI();
 				}
-			} else if (IsActive() && MANAGER(Input)->DoNavigateWithMouse()) {
-				Input::Manager::ToggleCursor(true);
+			} else if (IsActive()) {
+				FUCK::ForceCursor(true);
 			}
 		} else if (a_evn->menuName == RE::TweenMenu::MENU_NAME) {
 			if (!a_evn->opening) {

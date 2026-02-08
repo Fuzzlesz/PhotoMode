@@ -1,6 +1,4 @@
 #include "Hotkeys.h"
-
-#include "ImGui/IconsFonts.h"
 #include "Input.h"
 #include "Manager.h"
 
@@ -17,6 +15,60 @@ namespace PhotoMode::Hotkeys
 		previousTab.LoadKeys(a_ini, "iPreviousTab");
 		freezeTime.LoadKeys(a_ini, "iFreezeTime");
 		panCamera.LoadKeys(a_ini, "iPanCamera");
+
+		// Sync to ManagedHotkey format
+
+		// Toggle hotkey (from KeyCombo)
+		if (!togglePhotoMode.keyboard.keys.empty()) {
+			auto it = togglePhotoMode.keyboard.keys.begin();
+			_toggleHotkey.kKey = *it;
+			++it;
+			_toggleHotkey.kMod1 = (it != togglePhotoMode.keyboard.keys.end()) ? static_cast<std::int32_t>(*it) : -1;
+			++it;
+			_toggleHotkey.kMod2 = (it != togglePhotoMode.keyboard.keys.end()) ? static_cast<std::int32_t>(*it) : -1;
+		} else {
+			_toggleHotkey.kKey = 0;
+			_toggleHotkey.kMod1 = -1;
+			_toggleHotkey.kMod2 = -1;
+		}
+
+		if (!togglePhotoMode.gamePad.keys.empty()) {
+			auto it = togglePhotoMode.gamePad.keys.begin();
+			_toggleHotkey.gKey = *it;
+			++it;
+			_toggleHotkey.gMod1 = (it != togglePhotoMode.gamePad.keys.end()) ? static_cast<std::int32_t>(*it) : -1;
+			++it;
+			_toggleHotkey.gMod2 = (it != togglePhotoMode.gamePad.keys.end()) ? static_cast<std::int32_t>(*it) : -1;
+		} else {
+			_toggleHotkey.gKey = 0;
+			_toggleHotkey.gMod1 = -1;
+			_toggleHotkey.gMod2 = -1;
+		}
+
+		// Sync Individual Hotkeys
+		_screenshotHotkey.kKey = takePhoto.Keyboard();
+		_screenshotHotkey.gKey = takePhoto.GamePad();
+
+		_toggleMenusHotkey.kKey = toggleMenus.Keyboard();
+		_toggleMenusHotkey.gKey = toggleMenus.GamePad();
+
+		_nextTabHotkey.kKey = nextTab.Keyboard();
+		_nextTabHotkey.gKey = nextTab.GamePad();
+
+		_previousTabHotkey.kKey = previousTab.Keyboard();
+		_previousTabHotkey.gKey = previousTab.GamePad();
+
+		_freezeTimeHotkey.kKey = freezeTime.Keyboard();
+		_freezeTimeHotkey.gKey = freezeTime.GamePad();
+
+		_resetHotkey.kKey = reset.Keyboard();
+		_resetHotkey.gKey = reset.GamePad();
+
+		_panCameraHotkey.kKey = panCamera.Keyboard();
+		_panCameraHotkey.gKey = panCamera.GamePad();
+
+		logger::info("Hotkeys Loaded: Reset={}, TakePhoto={}, FreezeTime={}",
+			reset.GetKey(), takePhoto.GetKey(), freezeTime.GetKey());
 	}
 
 	void Manager::TogglePhotoMode(RE::InputEvent* const* a_event)
@@ -159,45 +211,5 @@ namespace PhotoMode::Hotkeys
 	std::uint32_t Manager::EscapeKey()
 	{
 		return MANAGER(Input)->IsInputKBM() ? KEY::kEscape : SKSE::InputMap::kGamepadButtonOffset_B;
-	}
-
-	const IconFont::IconTexture* Manager::ResetIcon() const
-	{
-		return MANAGER(IconFont)->GetIcon(reset.GetKey());
-	}
-
-	const IconFont::IconTexture* Manager::TakePhotoIcon() const
-	{
-		return MANAGER(IconFont)->GetIcon(takePhoto.GetKey());
-	}
-
-	const IconFont::IconTexture* Manager::ToggleMenusIcon() const
-	{
-		return MANAGER(IconFont)->GetIcon(toggleMenus.GetKey());
-	}
-
-	const IconFont::IconTexture* Manager::NextTabIcon() const
-	{
-		return MANAGER(IconFont)->GetIcon(nextTab.GetKey());
-	}
-
-	const IconFont::IconTexture* Manager::PreviousTabIcon() const
-	{
-		return MANAGER(IconFont)->GetIcon(previousTab.GetKey());
-	}
-
-	const IconFont::IconTexture* Manager::FreezeTimeIcon() const
-	{
-		return MANAGER(IconFont)->GetIcon(freezeTime.GetKey());
-	}
-
-	const IconFont::IconTexture* Manager::PanCameraIcon() const
-	{
-		return MANAGER(IconFont)->GetIcon(panCamera.GetKey());
-	}
-
-	std::set<const IconFont::IconTexture*> Manager::TogglePhotoModeIcons() const
-	{
-		return MANAGER(IconFont)->GetIcons(togglePhotoMode.GetKeys());
 	}
 }

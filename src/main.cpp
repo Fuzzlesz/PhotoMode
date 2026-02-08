@@ -1,14 +1,12 @@
 #include "Console.h"
 #include "ENB/ENB.h"
 #include "Hooks.h"
-#include "ImGui/Renderer.h"
 #include "Input.h"
 #include "Papyrus.h"
 #include "PhotoMode/Manager.h"
 #include "Screenshots/LoadScreen.h"
 #include "Screenshots/Manager.h"
 #include "Settings.h"
-#include "Translation.h"
 
 void OnInit(SKSE::MessagingInterface::Message* a_msg)
 {
@@ -42,22 +40,30 @@ void OnInit(SKSE::MessagingInterface::Message* a_msg)
 	case SKSE::MessagingInterface::kInputLoaded:
 		{
 			logger::info("{:*^30}", "INPUT LOADED");
-
-			MANAGER(Input)->Register();
-			MANAGER(PhotoMode)->Register();
 		}
 		break;
 	case SKSE::MessagingInterface::kDataLoaded:
 		{
 			logger::info("{:*^30}", "DATA LOADED");
 
-			MANAGER(Translation)->BuildTranslationMap();
+			if (FUCK::Connect()) {
+				logger::info("Connected to FUCK API v{}", FUCK_API_VERSION);
 
-			MANAGER(LoadScreen)->InitLoadScreenObjects();
-			MANAGER(Screenshot)->LoadScreenshots();
-			MANAGER(PhotoMode)->OnDataLoad();
+				FUCK::LoadTranslation("PhotoMode");
+				Settings::GetSingleton()->LoadMCMSettings();
 
-			Console::Install();
+				MANAGER(LoadScreen)->InitLoadScreenObjects();
+				MANAGER(Screenshot)->LoadScreenshots();
+
+				MANAGER(PhotoMode)->OnDataLoad();
+				MANAGER(PhotoMode)->Register();
+
+				FUCK::RegisterTool(MANAGER(PhotoMode));
+
+				Console::Install();
+			} else {
+				logger::critical("Failed to connect to FUCK API. PhotoMode disabled.");
+			}
 		}
 		break;
 	default:
@@ -130,17 +136,9 @@ extern "C" DLLEXPORT bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadInterface* a_s
 
 	SKSE::AllocTrampoline(128);
 
-	Settings::GetSingleton()->Load(FileType::kDisplayTweaks, [](auto& ini) {
-		ImGui::Renderer::LoadSettings(ini);  // display tweaks scaling
-	});
-	Settings::GetSingleton()->LoadMCMSettings();
-
-	ImGui::Renderer::Install();
-
-	const auto messaging = SKSE::GetMessagingInterface();
-	messaging->RegisterListener("SKSE", OnInit);
-
-	SKSE::GetPapyrusInterface()->Register(Papyrus::Register);
+	if (const auto messaging = SKSE::GetMessagingInterface(); !messaging->RegisterListener(OnInit)) {
+		return false;
+	}
 
 	return true;
 }

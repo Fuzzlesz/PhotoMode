@@ -2,13 +2,6 @@ set(sources ${sources}
 	src/Console.cpp
 	src/Graphics.cpp
 	src/Hooks.cpp
-	src/ImGui/Backend/imgui_impl_win32.cpp
-	src/ImGui/Graphics.cpp
-	src/ImGui/IconsFonts.cpp
-	src/ImGui/Renderer.cpp
-	src/ImGui/Styles.cpp
-	src/ImGui/Util.cpp
-	src/ImGui/Widgets.cpp
 	src/Input.cpp
 	src/PCH.cpp
 	src/Papyrus.cpp
@@ -23,6 +16,5 @@ set(sources ${sources}
 	src/Screenshots/LoadScreen.cpp
 	src/Screenshots/Manager.cpp
 	src/Settings.cpp
-	src/Translation.cpp
 	src/main.cpp
 )

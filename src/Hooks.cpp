@@ -7,6 +7,8 @@
 
 namespace PhotoMode
 {
+	inline StringMap<RE::TESIdleForm*> cachedIdles;
+
 	struct FromEulerAnglesZXY
 	{
 		static void thunk(RE::NiMatrix3* a_matrix, float a_z, float a_x, float a_y)
@@ -23,7 +25,7 @@ namespace PhotoMode
 		{
 			if (!clib_util::string::is_empty(a_str)) {
 				if (const std::string_view str(a_str); !str.starts_with("pa_")) {  // paired anims
-					cachedIdles.emplace(a_str, a_this);
+					PhotoMode::cachedIdles.emplace(a_str, a_this);
 				}
 			}
 			return func(a_this, a_str);
