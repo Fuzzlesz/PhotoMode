@@ -119,6 +119,7 @@ class ITool
 public:
 	virtual ~ITool() = default;
 	virtual const char* Name() const = 0;
+	virtual const char* Group() const { return nullptr; }
 	virtual void        Draw() = 0;
 	virtual void        OnOpen() {}
 	virtual void        OnClose() {}
@@ -157,7 +158,7 @@ struct FUCK_Interface
 	float (*GetResolutionScale)();
 	void (*GetDisplaySize)(float*, float*);
 	ImFont* (*GetFont)(FUCK_Font);
-	void (*PushFont)(ImFont*);
+	void (*PushFont)(ImFont*, float);
 	void (*PopFont)();
 	void (*SuspendRendering)(bool);
 	void (*SetMenuOpen)(bool);
@@ -250,6 +251,8 @@ struct FUCK_Interface
 	bool (*IsItemActive)();
 	bool (*IsAnyItemActive)();
 	bool (*IsWindowFocused)(int);
+	bool (*IsMouseDown)(int);
+	bool (*IsMouseReleased)(int);
 	void (*SetKeyboardFocusHere)(int);
 	void (*SetItemDefaultFocus)();
 
@@ -369,6 +372,7 @@ namespace FUCK
 		}
 
 		GetInterface() = iface;
+		logger::info("Connected to FUCK API version {}", iface->version);
 
 		return true;
 	}
@@ -412,10 +416,10 @@ namespace FUCK
 		return ImVec2(0, 0);
 	}
 	inline ImFont* GetFont(FUCK_Font font) { return GetInterface() ? GetInterface()->GetFont(font) : nullptr; }
-	inline void    PushFont(ImFont* font)
+	inline void    PushFont(ImFont* font, float size = 0.0f)
 	{
 		if (auto i = GetInterface())
-			i->PushFont(font);
+			i->PushFont(font, size);
 	}
 	inline void PopFont()
 	{
@@ -666,20 +670,20 @@ namespace FUCK
 	inline float GetFrameHeightWithSpacing() { return GetInterface() ? GetInterface()->GetFrameHeightWithSpacing() : 0.0f; }
 
 	// --- IO & Game State ---
-	inline float  GetDeltaTime() { return GetInterface() ? GetInterface()->GetDeltaTime() : 0.016f; }
+	inline float  GetDeltaTime() { return GetInterface() ? GetInterface()->GetDeltaTime() : 0.0f; }
 	inline ImVec2 GetMouseDelta()
 	{
-		ImVec2 s;
+		ImVec2 p(0, 0);
 		if (auto i = GetInterface())
-			i->GetMouseDelta(&s.x, &s.y);
-		return s;
+			i->GetMouseDelta(&p.x, &p.y);
+		return p;
 	}
 	inline ImVec2 GetMousePos()
 	{
-		ImVec2 s;
+		ImVec2 p(0, 0);
 		if (auto i = GetInterface())
-			i->GetMousePos(&s.x, &s.y);
-		return s;
+			i->GetMousePos(&p.x, &p.y);
+		return p;
 	}
 	inline void SetGameTimeFrozen(bool frozen)
 	{
@@ -712,7 +716,7 @@ namespace FUCK
 	inline bool        IsInputDown(std::uint32_t keyId) { return GetInterface() ? GetInterface()->IsInputDown(keyId) : false; }
 	inline float       GetAnalogInput(std::uint32_t keyId) { return GetInterface() ? GetInterface()->GetAnalogInput(keyId) : 0.0f; }
 	inline bool        IsModifierPressed(Modifier mod) { return GetInterface() ? GetInterface()->IsModifierPressed(mod) : false; }
-	inline InputDevice GetInputDevice() { return GetInterface() ? (InputDevice)GetInterface()->GetInputDevice() : InputDevice::kMouseKeyboard; }
+	inline InputDevice GetInputDevice() { return GetInterface() ? static_cast<InputDevice>(GetInterface()->GetInputDevice()) : InputDevice::kMouseKeyboard; }
 	inline const char* GetKeyName(std::uint32_t k) { return GetInterface() ? GetInterface()->GetKeyName(k) : ""; }
 	inline bool        IsGamepadKey(std::uint32_t k) { return GetInterface() ? GetInterface()->IsGamepadKey(k) : false; }
 
@@ -722,6 +726,8 @@ namespace FUCK
 	inline bool IsItemActive() { return GetInterface() ? GetInterface()->IsItemActive() : false; }
 	inline bool IsAnyItemActive() { return GetInterface() ? GetInterface()->IsAnyItemActive() : false; }
 	inline bool IsWindowFocused(int flags = 0) { return GetInterface() ? GetInterface()->IsWindowFocused(flags) : false; }
+	inline bool IsMouseDown(int button) { return GetInterface() ? GetInterface()->IsMouseDown(button) : false; }
+	inline bool IsMouseReleased(int button) { return GetInterface() ? GetInterface()->IsMouseReleased(button) : false; }
 	inline void SetKeyboardFocusHere(int offset = 0)
 	{
 		if (auto i = GetInterface())
@@ -855,17 +861,21 @@ namespace FUCK
 	}
 	inline ImVec2 GetWindowPos()
 	{
-		ImVec2 p;
-		if (auto i = GetInterface())
+		if (auto i = GetInterface()) {
+			ImVec2 p;
 			i->GetWindowPos(&p.x, &p.y);
-		return p;
+			return p;
+		}
+		return ImVec2(0, 0);
 	}
 	inline ImVec2 GetWindowSize()
 	{
-		ImVec2 p;
-		if (auto i = GetInterface())
+		if (auto i = GetInterface()) {
+			ImVec2 p;
 			i->GetWindowSize(&p.x, &p.y);
-		return p;
+			return p;
+		}
+		return ImVec2(0, 0);
 	}
 	inline void SetNextWindowPos(const ImVec2& pos, int cond = 0, const ImVec2& pivot = ImVec2(0, 0))
 	{
@@ -940,7 +950,7 @@ namespace FUCK
 	inline bool                 DragFloat(const char* label, float* v, float speed = 1.0f, float min = 0.0f, float max = 0.0f, const char* fmt = "%.3f") { return GetInterface() ? GetInterface()->DragFloat(label, v, speed, min, max, fmt) : false; }
 	inline bool                 DragInt(const char* label, int* v, float speed = 1.0f, int min = 0, int max = 0, const char* fmt = "%d") { return GetInterface() ? GetInterface()->DragInt(label, v, speed, min, max, fmt) : false; }
 	inline bool                 Combo(const char* label, int* current_item, const char* const* items, int items_count) { return GetInterface() ? GetInterface()->Combo(label, current_item, items, items_count) : false; }
-	inline bool                 ComboWithFilter(const char* label, int* current_item, const char* const* items, int items_count, int popup_max_height_in_items) { return GetInterface() ? GetInterface()->ComboWithFilter(label, current_item, items, items_count, popup_max_height_in_items) : false; }
+	inline bool                 ComboWithFilter(const char* label, int* current_item, const char* const* items, int items_count, int popup_max_height_in_items = -1) { return GetInterface() ? GetInterface()->ComboWithFilter(label, current_item, items, items_count, popup_max_height_in_items) : false; }
 	inline bool                 ComboForm(const char* label, std::uint32_t* currentFormID, std::uint8_t formType) { return GetInterface() ? GetInterface()->ComboForm(label, currentFormID, formType) : false; }
 	inline ImGuiTableSortSpecs* GetTableSortSpecs() { return GetInterface() ? GetInterface()->GetTableSortSpecs() : nullptr; }
 	inline bool                 Selectable(const char* label, bool selected = false, int flags = 0, const ImVec2& size = ImVec2(0, 0)) { return GetInterface() ? GetInterface()->Selectable(label, selected, flags, size) : false; }
@@ -960,60 +970,60 @@ namespace FUCK
 		auto i = GetInterface();
 		if (!i)
 			return;
-		va_list a;
-		va_start(a, fmt);
-		char b[1024];
-		vsnprintf(b, 1024, fmt, a);
-		va_end(a);
-		i->TextColored(color, b);
+		va_list args;
+		va_start(args, fmt);
+		char buf[1024];
+		vsnprintf(buf, 1024, fmt, args);
+		va_end(args);
+		i->TextColored(color, buf);
 	}
 	inline void TextColoredWrapped(const ImVec4& col, const char* fmt, ...)
 	{
 		auto i = GetInterface();
 		if (!i)
 			return;
-		va_list a;
-		va_start(a, fmt);
-		char b[1024];
-		vsnprintf(b, 1024, fmt, a);
-		va_end(a);
-		i->TextColoredWrapped(col, b);
+		va_list args;
+		va_start(args, fmt);
+		char buf[1024];
+		vsnprintf(buf, 1024, fmt, args);
+		va_end(args);
+		i->TextColoredWrapped(col, buf);
 	}
 	inline void TextDisabled(const char* fmt, ...)
 	{
 		auto i = GetInterface();
 		if (!i)
 			return;
-		va_list a;
-		va_start(a, fmt);
-		char b[1024];
-		vsnprintf(b, 1024, fmt, a);
-		va_end(a);
-		i->TextDisabled(b);
+		va_list args;
+		va_start(args, fmt);
+		char buf[1024];
+		vsnprintf(buf, 1024, fmt, args);
+		va_end(args);
+		i->TextDisabled(buf);
 	}
 	inline void Text(const char* fmt, ...)
 	{
 		auto i = GetInterface();
 		if (!i)
 			return;
-		va_list a;
-		va_start(a, fmt);
-		char b[1024];
-		vsnprintf(b, 1024, fmt, a);
-		va_end(a);
-		i->Text(b);
+		va_list args;
+		va_start(args, fmt);
+		char buf[1024];
+		vsnprintf(buf, 1024, fmt, args);
+		va_end(args);
+		i->Text(buf);
 	}
 	inline void TextWrapped(const char* fmt, ...)
 	{
 		auto i = GetInterface();
 		if (!i)
 			return;
-		va_list a;
-		va_start(a, fmt);
-		char b[1024];
-		vsnprintf(b, 1024, fmt, a);
-		va_end(a);
-		i->TextWrapped(b);
+		va_list args;
+		va_start(args, fmt);
+		char buf[1024];
+		vsnprintf(buf, 1024, fmt, args);
+		va_end(args);
+		i->TextWrapped(buf);
 	}
 	inline void TextUnformatted(const char* text, const char* text_end = nullptr)
 	{
@@ -1060,7 +1070,27 @@ namespace FUCK
 
 	inline bool InputText(const char* label, std::string* str, int flags = 0)
 	{
-		return InputText(label, str->data(), str->capacity() + 1, flags | ImGuiInputTextFlags_CallbackResize);
+		// Ensure the string has a reasonable minimum capacity
+		constexpr size_t kMinCapacity = 256;
+		if (str->capacity() < kMinCapacity)
+			str->reserve(kMinCapacity);
+
+		// Resize to capacity to provide full buffer
+		const size_t oldSize = str->size();
+		str->resize(str->capacity());
+
+		// Call the base InputText with the expanded buffer
+		const bool changed = InputText(label, str->data(), str->capacity() + 1, flags);
+
+		if (changed) {
+			// Trim to actual string length
+			str->resize(std::strlen(str->c_str()));
+		} else {
+			// Restore original size if unchanged
+			str->resize(oldSize);
+		}
+
+		return changed;
 	}
 
 	// ==========================================
@@ -1246,4 +1276,7 @@ namespace FUCK
 	}
 }
 
-inline const char* operator""_T(const char* str, std::size_t) { return FUCK::Translate(str); }
+inline const char* operator""_T(const char* str, std::size_t)
+{
+	return FUCK::Translate(str);
+}
