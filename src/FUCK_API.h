@@ -293,10 +293,14 @@ struct FUCK_Interface
 	bool (*ToggleButton)(const char*, bool*, bool, bool);
 	bool (*InputText)(const char*, char*, size_t, int);
 	bool (*ColorEdit3)(const char*, float[3], int);
+	bool (*ColorEdit4)(const char*, float[4], int);
 	bool (*SliderFloat)(const char*, float*, float, float, const char*);
 	bool (*SliderInt)(const char*, int*, int, int, const char*);
-	bool (*DragFloat)(const char*, float*, float, float, float, const char*);
 	bool (*DragInt)(const char*, int*, float, int, int, const char*);
+	bool (*DragFloat)(const char*, float*, float, float, float, const char*);
+	bool (*DragFloat2)(const char*, float[2], float, float, float, const char*);
+	bool (*DragFloat3)(const char*, float[3], float, float, float, const char*);
+	bool (*DragFloat4)(const char*, float[4], float, float, float, const char*);
 	bool (*Combo)(const char*, int*, const char* const*, int);
 	bool (*ComboWithFilter)(const char*, int*, const char* const*, int, int);
 	bool (*ComboForm)(const char*, std::uint32_t*, std::uint8_t);
@@ -977,10 +981,14 @@ namespace FUCK
 	inline bool                 ToggleButton(const char* label, bool* v, bool alignFar = true, bool labelLeft = true) { return GetInterface() ? GetInterface()->ToggleButton(label, v, alignFar, labelLeft) : false; }
 	inline bool                 InputText(const char* label, char* buf, size_t buf_size, int flags = 0) { return GetInterface() ? GetInterface()->InputText(label, buf, buf_size, flags) : false; }
 	inline bool                 ColorEdit3(const char* label, float col[3], int flags = 0) { return GetInterface() ? GetInterface()->ColorEdit3(label, col, flags) : false; }
+	inline bool                 ColorEdit4(const char* label, float col[4], int flags = 0) { return GetInterface() ? GetInterface()->ColorEdit4(label, col, flags) : false; }
 	inline bool                 SliderFloat(const char* label, float* v, float min, float max, const char* fmt = "%.3f") { return GetInterface() ? GetInterface()->SliderFloat(label, v, min, max, fmt) : false; }
 	inline bool                 SliderInt(const char* label, int* v, int min, int max, const char* fmt = "%d") { return GetInterface() ? GetInterface()->SliderInt(label, v, min, max, fmt) : false; }
-	inline bool                 DragFloat(const char* label, float* v, float speed = 1.0f, float min = 0.0f, float max = 0.0f, const char* fmt = "%.3f") { return GetInterface() ? GetInterface()->DragFloat(label, v, speed, min, max, fmt) : false; }
 	inline bool                 DragInt(const char* label, int* v, float speed = 1.0f, int min = 0, int max = 0, const char* fmt = "%d") { return GetInterface() ? GetInterface()->DragInt(label, v, speed, min, max, fmt) : false; }
+	inline bool                 DragFloat(const char* label, float* v, float speed = 1.0f, float min = 0.0f, float max = 0.0f, const char* fmt = "%.3f") { return GetInterface() ? GetInterface()->DragFloat(label, v, speed, min, max, fmt) : false; }
+	inline bool                 DragFloat2(const char* label, float v[2], float speed = 1.0f, float min = 0.0f, float max = 0.0f, const char* fmt = "%.3f") { return GetInterface() ? GetInterface()->DragFloat2(label, v, speed, min, max, fmt) : false; }
+	inline bool                 DragFloat3(const char* label, float v[3], float speed = 1.0f, float min = 0.0f, float max = 0.0f, const char* fmt = "%.3f") { return GetInterface() ? GetInterface()->DragFloat3(label, v, speed, min, max, fmt) : false; }
+	inline bool                 DragFloat4(const char* label, float v[4], float speed = 1.0f, float min = 0.0f, float max = 0.0f, const char* fmt = "%.3f") { return GetInterface() ? GetInterface()->DragFloat4(label, v, speed, min, max, fmt) : false; }
 	inline bool                 Combo(const char* label, int* current_item, const char* const* items, int items_count) { return GetInterface() ? GetInterface()->Combo(label, current_item, items, items_count) : false; }
 	inline bool                 ComboWithFilter(const char* label, int* current_item, const char* const* items, int items_count, int popup_max_height_in_items = -1) { return GetInterface() ? GetInterface()->ComboWithFilter(label, current_item, items, items_count, popup_max_height_in_items) : false; }
 	inline bool                 ComboForm(const char* label, std::uint32_t* currentFormID, std::uint8_t formType) { return GetInterface() ? GetInterface()->ComboForm(label, currentFormID, formType) : false; }
