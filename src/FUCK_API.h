@@ -191,6 +191,7 @@ struct FUCK_Interface
 	void (*GetItemRectMin)(float*, float*);
 	void (*GetItemRectMax)(float*, float*);
 	void (*SetNextItemWidth)(float);
+	void (*SetNextItemOpen)(bool, int);
 	void (*Dummy)(float, float);
 	void (*Spacing)();
 	void (*Separator)();
@@ -250,7 +251,9 @@ struct FUCK_Interface
 	bool (*IsItemClicked)(int);
 	bool (*IsItemActive)();
 	bool (*IsAnyItemActive)();
+	bool (*IsAnyItemHovered)();
 	bool (*IsWindowFocused)(int);
+	bool (*IsWindowHovered)(int);
 	bool (*IsMouseDown)(int);
 	bool (*IsMouseReleased)(int);
 	void (*SetKeyboardFocusHere)(int);
@@ -264,6 +267,11 @@ struct FUCK_Interface
 	void (*DrawBackgroundImage)(void*, float);
 	void (*DrawBackgroundLine)(float, float, float, float, unsigned int, float);
 	void (*DrawBackgroundRect)(const ImVec2&, const ImVec2&, ImU32, float);
+
+	// Screen primitives
+	void (*DrawScreenRect)(const ImVec2&, const ImVec2&, ImU32, float, float);
+	void (*DrawScreenRectFilled)(const ImVec2&, const ImVec2&, ImU32, float);
+	void (*DrawScreenLine)(float, float, float, float, ImU32, float);
 
 	// Windows
 	void (*SetNextWindowPos)(float, float, int, float, float);
@@ -554,6 +562,11 @@ namespace FUCK
 		if (auto i = GetInterface())
 			i->SetNextItemWidth(width);
 	}
+	inline void SetNextItemOpen(bool is_open, int cond = 0)
+	{
+		if (auto i = GetInterface())
+			i->SetNextItemOpen(is_open, cond);
+	}
 	inline void Dummy(const ImVec2& size)
 	{
 		if (auto i = GetInterface())
@@ -725,7 +738,9 @@ namespace FUCK
 	inline bool IsItemClicked(int mouse_button = 0) { return GetInterface() ? GetInterface()->IsItemClicked(mouse_button) : false; }
 	inline bool IsItemActive() { return GetInterface() ? GetInterface()->IsItemActive() : false; }
 	inline bool IsAnyItemActive() { return GetInterface() ? GetInterface()->IsAnyItemActive() : false; }
+	inline bool IsAnyItemHovered() { return GetInterface() ? GetInterface()->IsAnyItemHovered() : false; }
 	inline bool IsWindowFocused(int flags = 0) { return GetInterface() ? GetInterface()->IsWindowFocused(flags) : false; }
+	inline bool IsWindowHovered(int flags = 0) { return GetInterface() ? GetInterface()->IsWindowHovered(flags) : false; }
 	inline bool IsMouseDown(int button) { return GetInterface() ? GetInterface()->IsMouseDown(button) : false; }
 	inline bool IsMouseReleased(int button) { return GetInterface() ? GetInterface()->IsMouseReleased(button) : false; }
 	inline void SetKeyboardFocusHere(int offset = 0)
@@ -845,6 +860,23 @@ namespace FUCK
 	{
 		if (auto i = GetInterface())
 			i->DrawBackgroundRect(min, max, col, thickness);
+	}
+
+	// --- Screen Primitives ---
+	inline void DrawScreenRect(const ImVec2& min, const ImVec2& max, ImU32 col, float rounding = 0.0f, float thickness = 1.0f)
+	{
+		if (auto i = GetInterface())
+			i->DrawScreenRect(min, max, col, rounding, thickness);
+	}
+	inline void DrawScreenRectFilled(const ImVec2& min, const ImVec2& max, ImU32 col, float rounding = 0.0f)
+	{
+		if (auto i = GetInterface())
+			i->DrawScreenRectFilled(min, max, col, rounding);
+	}
+	inline void DrawScreenLine(const ImVec2& p1, const ImVec2& p2, ImU32 col, float thickness = 1.0f)
+	{
+		if (auto i = GetInterface())
+			i->DrawScreenLine(p1.x, p1.y, p2.x, p2.y, col, thickness);
 	}
 
 	// --- Windows ---
