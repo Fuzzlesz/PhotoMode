@@ -121,6 +121,7 @@ public:
 	virtual const char* Name() const = 0;
 	virtual const char* Group() const { return nullptr; }
 	virtual void        Draw() = 0;
+	virtual void        RenderOverlay() {}
 	virtual void        OnOpen() {}
 	virtual void        OnClose() {}
 	virtual bool        OnAsyncInput(const void*) { return false; }
@@ -250,6 +251,7 @@ struct FUCK_Interface
 	bool (*IsItemHovered)(int);
 	bool (*IsItemClicked)(int);
 	bool (*IsItemActive)();
+	bool (*IsItemFocused)();
 	bool (*IsAnyItemActive)();
 	bool (*IsAnyItemHovered)();
 	bool (*IsWindowFocused)(int);
@@ -741,6 +743,7 @@ namespace FUCK
 	inline bool IsItemHovered(int flags = 0) { return GetInterface() ? GetInterface()->IsItemHovered(flags) : false; }
 	inline bool IsItemClicked(int mouse_button = 0) { return GetInterface() ? GetInterface()->IsItemClicked(mouse_button) : false; }
 	inline bool IsItemActive() { return GetInterface() ? GetInterface()->IsItemActive() : false; }
+	inline bool IsItemFocused() { return GetInterface() ? GetInterface()->IsItemFocused() : false; }
 	inline bool IsAnyItemActive() { return GetInterface() ? GetInterface()->IsAnyItemActive() : false; }
 	inline bool IsAnyItemHovered() { return GetInterface() ? GetInterface()->IsAnyItemHovered() : false; }
 	inline bool IsWindowFocused(int flags = 0) { return GetInterface() ? GetInterface()->IsWindowFocused(flags) : false; }
